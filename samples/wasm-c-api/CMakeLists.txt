@@ -128,6 +128,8 @@ set(EXAMPLES
   hello
   hostref
   memory
+  memdump
+  memload
   reflect
   table
   trap
@@ -146,13 +148,15 @@ foreach(EX ${EXAMPLES})
   # wat to wasm
   set(WAT ${CMAKE_CURRENT_LIST_DIR}/src/${EX}.wat)
 
-  add_custom_target(${EX}_WASM
-    COMMAND ${WAT2WASM} ${WAT} --enable-reference-types -o ${PROJECT_BINARY_DIR}/${EX}.wasm
-    DEPENDS ${WAT}
-    BYPRODUCTS ${PROJECT_BINARY_DIR}/${EX}.wasm
-    VERBATIM
-  )
-  add_dependencies(${EX} ${EX}_WASM)
+  if (EXISTS ${WAT})
+    add_custom_target(${EX}_WASM
+      COMMAND ${WAT2WASM} ${WAT} --enable-reference-types -o ${PROJECT_BINARY_DIR}/${EX}.wasm
+      DEPENDS ${WAT}
+      BYPRODUCTS ${PROJECT_BINARY_DIR}/${EX}.wasm
+      VERBATIM
+    )
+    add_dependencies(${EX} ${EX}_WASM)
+  endif()
 
   # generate .aot file
   if(${WAMR_BUILD_AOT} EQUAL 1)
