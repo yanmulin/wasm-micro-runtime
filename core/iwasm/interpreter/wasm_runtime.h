@@ -240,6 +240,14 @@ typedef struct WASMSubModInstNode {
 } WASMSubModInstNode;
 #endif
 
+#if WASM_ENABLE_FAST_INTERP != 0
+
+void wasm_interp_call_resume(struct WASMModuleInstance *module_inst, 
+    struct WASMExecEnv *exec_env, struct WASMFunctionInstance *function);
+void wasm_restore_frames(struct WASMExecEnv *exec_env, struct WASMFrameContext *contexts);
+
+#endif
+
 /**
  * Return the code block of a function.
  *

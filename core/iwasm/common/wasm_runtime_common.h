@@ -25,6 +25,23 @@
 extern "C" {
 #endif
 
+typedef struct WASMFrameContext WASMFrameContext;
+
+struct WASMFrameContext {
+    uint32 size;
+    uint32 func_index;
+    uint32 relative_ip;
+    uint32 ret_offset;
+    uint32 relative_lp;
+    uint32 operand[1];
+};
+
+
+WASMFrameContext *wasm_dump_call_stack(struct WASMExecEnv *exec_env, struct WASMInterpFrame *start_frame);
+void wasm_print_contexts(struct WASMExecEnv *exec_env, WASMFrameContext *contexts);
+void wasm_free_contexts(WASMFrameContext *contexts);
+
+
 #if WASM_CPU_SUPPORTS_UNALIGNED_ADDR_ACCESS != 0
 
 #define PUT_I64_TO_ADDR(addr, value)       \

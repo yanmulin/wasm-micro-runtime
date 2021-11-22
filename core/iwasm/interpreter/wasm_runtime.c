@@ -1653,6 +1653,19 @@ wasm_call_function(WASMExecEnv *exec_env, WASMFunctionInstance *function,
     /* set thread handle and stack boundary */
     wasm_exec_env_set_thread_info(exec_env);
 
+    WASMFrameContext *contexts = wasm_runtime_get_custom_data(exec_env->module_inst);
+    if (contexts) {
+        
+        wasm_runtime_set_custom_data(exec_env->module_inst, NULL);
+        wasm_print_contexts(exec_env, contexts);
+        wasm_restore_frames(exec_env, contexts);
+        wasm_runtime_free(contexts);
+
+        wasm_interp_call_resume(module_inst, exec_env, function);
+        (void)clear_wasi_proc_exit_exception(module_inst);
+        return !wasm_get_exception(module_inst) ? true : false;;
+    }
+
     wasm_interp_call_wasm(module_inst, exec_env, function, argc, argv);
     (void)clear_wasi_proc_exit_exception(module_inst);
     return !wasm_get_exception(module_inst) ? true : false;
@@ -1663,7 +1676,7 @@ wasm_create_exec_env_and_call_function(WASMModuleInstance *module_inst,
                                        WASMFunctionInstance *func,
                                        unsigned argc, uint32 argv[])
 {
-    WASMExecEnv *exec_env;
+    WASMExecEnv *exec_env, *prev_exec_env;
     bool ret;
 
 #if WASM_ENABLE_THREAD_MGR != 0
@@ -1678,10 +1691,13 @@ wasm_create_exec_env_and_call_function(WASMModuleInstance *module_inst,
             wasm_set_exception(module_inst, "allocate memory failed");
             return false;
         }
-
 #if WASM_ENABLE_THREAD_MGR != 0
     }
 #endif
+
+    prev_exec_env = module_inst->exec_env_singleton;
+    module_inst->exec_env_singleton = exec_env;
+
 
 #if WASM_ENABLE_REF_TYPES != 0
     wasm_runtime_prepare_call_function(exec_env, func);
@@ -1698,6 +1714,9 @@ wasm_create_exec_env_and_call_function(WASMModuleInstance *module_inst,
     if (!existing_exec_env)
 #endif
         wasm_exec_env_destroy(exec_env);
+    
+    module_inst->exec_env_singleton = prev_exec_env;
+    
 
     return ret;
 }
@@ -2372,6 +2391,7 @@ wasm_get_module_inst_mem_consumption(const WASMModuleInstance *module_inst,
         WASMMemoryInstance *memory = module_inst->memories[i];
         size = sizeof(WASMMemoryInstance)
                + memory->num_bytes_per_page * memory->cur_page_count;
+        size = memory->num_bytes_per_page * memory->cur_page_count;
         mem_conspn->memories_size += size;
         mem_conspn->app_heap_size += memory->heap_data_end - memory->heap_data;
         /* size of app heap structure */

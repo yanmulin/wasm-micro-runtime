@@ -64,8 +64,10 @@ app_instance_main(wasm_module_inst_t module_inst)
     const char *exception;
 
     wasm_application_execute_main(module_inst, app_argc, app_argv);
-    if ((exception = wasm_runtime_get_exception(module_inst)))
+    if ((exception = wasm_runtime_get_exception(module_inst))) {
         printf("%s\n", exception);
+        wasm_application_execute_func(module_inst, "resume", 0, NULL);
+    }
     return NULL;
 }
 

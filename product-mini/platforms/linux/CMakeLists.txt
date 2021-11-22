@@ -6,6 +6,10 @@ cmake_minimum_required (VERSION 2.8)
 project (iwasm)
 # set (CMAKE_VERBOSE_MAKEFILE 1)
 
+set(WAMR_BUILD_MEMORY_PROFILING 1)
+set(WAMR_BUILD_DUMP_CALL_STACK 1)
+set(WASM_ENABLE_DUMP_CALL_STACK 1)
+
 set (WAMR_BUILD_PLATFORM "linux")
 
 # Reset default linker flags

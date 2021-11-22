@@ -852,6 +852,11 @@ wasm_interp_call_func_native(WASMModuleInstance *module_inst,
                  "failed to call unlinked import function (%s, %s)",
                  func_import->module_name, func_import->field_name);
         wasm_set_exception((WASMModuleInstance *)module_inst, buf);
+
+        WASMFrameContext *contexts = wasm_dump_call_stack(exec_env, prev_frame);
+        wasm_print_contexts(exec_env, contexts);
+        wasm_runtime_set_custom_data((struct WASMModuleInstanceCommon*)module_inst, contexts);
+
         return;
     }
 
@@ -3714,6 +3719,14 @@ wasm_interp_get_handle_table()
 #endif
 
 void
+wasm_interp_call_resume(WASMModuleInstance *module_inst, WASMExecEnv *exec_env,
+                    WASMFunctionInstance *function) 
+{
+    WASMRuntimeFrame *frame = wasm_exec_env_get_cur_frame(exec_env);
+    wasm_interp_call_func_bytecode(module_inst, exec_env, function, frame);
+}
+
+void
 wasm_interp_call_wasm(WASMModuleInstance *module_inst, WASMExecEnv *exec_env,
                       WASMFunctionInstance *function, uint32 argc,
                       uint32 argv[])
@@ -3794,4 +3807,42 @@ wasm_interp_call_wasm(WASMModuleInstance *module_inst, WASMExecEnv *exec_env,
 #if WASM_ENABLE_OPCODE_COUNTER != 0
     wasm_interp_dump_op_count();
 #endif
+}
+
+
+void wasm_restore_frames(WASMExecEnv *exec_env, WASMFrameContext *contexts) {
+    WASMInterpFrame *frame = exec_env->cur_frame;
+    WASMInterpFrame *prev = NULL;
+    while (frame != NULL) {
+        prev = frame;
+        FREE_FRAME(exec_env, prev);
+        frame = frame->prev_frame;
+    }
+    wasm_exec_env_set_cur_frame(exec_env, NULL);
+
+    WASMFrameContext *cur = contexts;
+    WASMModuleInstance *module_inst = (WASMModuleInstance*)exec_env->module_inst;
+    WASMFunctionInstance *function_base = module_inst->functions;
+    uint32 size_offset = (uint32)offsetof(WASMFrameContext, relative_lp);
+    while (cur->size > 0) {
+        uint32 data_size = cur->size - size_offset + sizeof(uint32);
+        uint32 frame_size = data_size + (uint32)offsetof(WASMInterpFrame, lp);
+        frame = ALLOC_FRAME(exec_env, frame_size, prev);
+        
+        if (cur->func_index < module_inst->function_count) {
+            frame->function = function_base + cur->func_index;
+            frame->ip = wasm_get_func_code(frame->function) + cur->relative_ip;
+        } else {
+            frame->function = NULL;
+            frame->ip = NULL;
+        }
+        frame->lp = (uint32*)exec_env->wasm_stack.s.bottom + cur->relative_lp;
+        frame->ret_offset = cur->ret_offset;
+        memcpy(frame->operand, cur->operand, data_size);
+
+        cur = (WASMFrameContext*)((uint8*)cur + cur->size);
+        prev = frame;
+    }
+
+    wasm_exec_env_set_cur_frame(exec_env, frame);
 }

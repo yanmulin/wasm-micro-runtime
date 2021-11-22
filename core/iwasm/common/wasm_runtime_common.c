@@ -8,7 +8,9 @@
 #include "bh_assert.h"
 #include "bh_log.h"
 #include "wasm_runtime_common.h"
+#include "wasm_interp.h"
 #include "wasm_memory.h"
+
 #if WASM_ENABLE_INTERP != 0
 #include "../interpreter/wasm_runtime.h"
 #endif
@@ -4221,4 +4223,77 @@ wasm_runtime_show_app_heap_corrupted_prompt()
               "to export malloc and free functions. If it is "
               "compiled by asc, please add --exportRuntime to "
               "export the runtime helpers.");
+}
+
+typedef struct WASMFrameContext WASMFrameContext;
+
+WASMFrameContext *wasm_dump_call_stack(WASMExecEnv *exec_env, WASMInterpFrame *start_frame) {
+    WASMInterpFrame *frame = start_frame;
+    uint32 total_size = 0;
+    int count = 0;
+    uint32 *frame_top = (uint32*)exec_env->wasm_stack.s.top;
+    uint32 size_offset = (uint32)offsetof(WASMFrameContext, relative_lp) + sizeof(uint32);
+    while (frame) {
+        total_size += (frame_top - frame->operand) * sizeof(uint32) + size_offset;
+        frame_top = (uint32*)frame;
+        frame = frame->prev_frame;
+        count ++;
+    }
+    total_size += (uint32)size_offset;
+    WASMFrameContext *contexts = wasm_runtime_malloc(total_size);
+    WASMFrameContext *cur = (WASMFrameContext*)((uint8*)contexts + total_size  - size_offset);
+    cur->size = 0;
+
+    WASMModuleInstance *module_inst = ((WASMModuleInstance*)exec_env->module_inst);
+    WASMFunctionInstance *functions_base = module_inst->functions;
+    frame = start_frame;
+    frame_top = (uint32*)exec_env->wasm_stack.s.top;
+    while (frame) {
+        WASMFunctionInstance *function = frame->function;
+        uint32 data_size = (frame_top - frame->operand) * sizeof(uint32);
+        uint32 size = data_size + size_offset;
+        cur = (WASMFrameContext*)((uint8*)cur - size);
+        cur->size = size;
+        cur->ret_offset = frame->ret_offset;
+        cur->relative_lp = frame->lp - (uint32*)exec_env->wasm_stack.s.bottom;
+        if (function) {
+            cur->func_index = function - functions_base;
+            cur->relative_ip = frame->ip - wasm_get_func_code(function);
+        } else {
+            cur->func_index = module_inst->function_count;
+            cur->relative_ip = 0;
+        }
+        memcpy(cur->operand, frame->operand, data_size);
+        frame_top = (uint32*)frame;
+        frame = frame->prev_frame;
+    }
+
+    return contexts;
+}
+
+void wasm_print_contexts(WASMExecEnv *exec_env, WASMFrameContext *contexts) {
+    WASMFrameContext *cur = contexts;
+    WASMModuleInstance* module_inst = ((WASMModuleInstance*)exec_env->module_inst);
+    WASMFunctionInstance *functions_base = module_inst->functions;
+    int i = 0;
+    while (cur->size > 0) {
+        uint8 *ip = NULL;
+        uint32 *lp = NULL;
+        int func_idx = -1;
+        if (cur->func_index < module_inst->function_count) {
+            WASMFunctionInstance *function = functions_base + cur->func_index;
+            ip = wasm_get_func_code(function) + cur->relative_ip;
+            lp = (uint32*)exec_env->wasm_stack.s.bottom + cur->relative_lp;
+            func_idx = cur->func_index;
+        }
+        printf("context %d@%p(%u): %p @ func %d, lp %p, ret_offset %u\n", 
+            i, cur, cur->size, ip, func_idx, lp, cur->ret_offset);
+        cur = (WASMFrameContext*)((uint8*)cur + cur->size);
+        i ++;
+    }
+}
+
+void wasm_free_contexts(WASMFrameContext *contexts) {
+    if (!contexts) return;
+    wasm_runtime_free(contexts);
 }

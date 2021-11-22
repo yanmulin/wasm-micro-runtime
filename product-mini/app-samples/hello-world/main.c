@@ -6,24 +6,29 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+int global = 2;
+
+void func();
+
+int foo(int x) {
+    int local = 0;
+    printf("entering foo(x=%d), local=%d, global=%d\n", x, local, global);
+    local ++;
+    func();
+    printf("exiting foo(x=%d), local=%d, global=%d\n", x, local, global);
+    return local;
+}
+
+void resume() {
+    printf("resume\n");
+}
+
 int
 main(int argc, char **argv)
 {
-    char *buf;
-
-    printf("Hello world!\n");
-
-    buf = malloc(1024);
-    if (!buf) {
-        printf("malloc buf failed\n");
-        return -1;
-    }
-
-    printf("buf ptr: %p\n", buf);
-
-    snprintf(buf, 1024, "%s", "1234\n");
-    printf("buf: %s", buf);
-
-    free(buf);
+    printf("entering main(), global=%d\n", global);
+    global ++;
+    foo(1);
+    printf("exiting main(), global=%d\n", global);
     return 0;
 }

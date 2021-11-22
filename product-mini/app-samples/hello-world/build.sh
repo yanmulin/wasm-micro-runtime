@@ -4,14 +4,15 @@
 WAMR_DIR=${PWD}/../../..
 
 echo "Build wasm app .."
-/opt/wasi-sdk/bin/clang -O3 \
+/opt/wasi-sdk/bin/clang -Og \
         -z stack-size=4096 -Wl,--initial-memory=65536 \
         -o test.wasm main.c \
         -Wl,--export=main -Wl,--export=__main_argc_argv \
+        -Wl,--export=foo -Wl,--export=resume -Wl,--export=global \
         -Wl,--export=__data_end -Wl,--export=__heap_base \
         -Wl,--strip-all,--no-entry \
-        -Wl,--allow-undefined \
-        -nostdlib \
+        -Wl,--allow-undefined
+        # -nostdlib 
 
 echo "Build binarydump tool .."
 rm -fr build && mkdir build && cd build
