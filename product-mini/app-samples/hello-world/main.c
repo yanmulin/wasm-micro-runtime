@@ -5,30 +5,28 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <poll.h>
 
 int global = 2;
+const int nfd = 2;
 
-void func();
+void loop(int);
+void init(uint32_t filenames_offset, int nfd);
 
-int foo(int x) {
-    int local = 0;
-    printf("entering foo(x=%d), local=%d, global=%d\n", x, local, global);
-    local ++;
-    func();
-    printf("exiting foo(x=%d), local=%d, global=%d\n", x, local, global);
-    return local;
-}
+int main(int argc, char **argv)
+{   
+    char *filenames[1] = {"/tmp/myfifo"};
 
-void resume() {
-    printf("resume\n");
-}
+    printf("app: start initialization...\n");
 
-int
-main(int argc, char **argv)
-{
-    printf("entering main(), global=%d\n", global);
-    global ++;
-    foo(1);
-    printf("exiting main(), global=%d\n", global);
+    init((uint32_t)filenames, 1);
+
+    printf("app: start looping...\n");
+
+    loop(5000);
+
     return 0;
 }

@@ -8,15 +8,21 @@
 #endif
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "bh_platform.h"
 #include "bh_read_file.h"
 #include "wasm_export.h"
+#include "cwlib.h"
+
 
 static int app_argc;
 static char **app_argv;
 
 #define MODULE_PATH ("--module-path=")
+
+void loop(wasm_exec_env_t exec_env, int sleep_ms);
+
 
 /* clang-format off */
 static int
@@ -360,6 +366,22 @@ main(int argc, char *argv[])
 
     memset(&init_args, 0, sizeof(RuntimeInitArgs));
 
+    static NativeSymbol native_symbols[] =
+    {
+        {
+            "loop", 		// the name of WASM function name
+            loop, 			// the native function pointer
+            "(i)",			// the function prototype signature, avoid to use i32
+            NULL                // attachment is NULL
+        },
+        {
+            "init", 		// the name of WASM function name
+            init, 			// the native function pointer
+            "(ii)",			// the function prototype signature, avoid to use i32
+            NULL                // attachment is NULL
+        }
+    };
+
 #if WASM_ENABLE_GLOBAL_HEAP_POOL != 0
     init_args.mem_alloc_type = Alloc_With_Pool;
     init_args.mem_alloc_option.pool.heap_buf = global_heap_buf;
@@ -370,6 +392,10 @@ main(int argc, char *argv[])
     init_args.mem_alloc_option.allocator.realloc_func = realloc;
     init_args.mem_alloc_option.allocator.free_func = free;
 #endif
+
+    init_args.n_native_symbols = sizeof(native_symbols) / sizeof(NativeSymbol);
+    init_args.native_module_name = "env";
+    init_args.native_symbols = native_symbols;
 
 #if WASM_ENABLE_DEBUG_INTERP != 0
     init_args.platform_port = 0;
